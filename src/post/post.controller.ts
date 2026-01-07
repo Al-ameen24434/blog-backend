@@ -4,42 +4,43 @@ import {
   Delete,
   Get,
   Param,
-  ParseIntPipe,
+  Req,
+  UseGuards,
   Patch,
   Post,
 } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { PostService } from './post.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 
+@UseGuards(AuthGuard('jwt'))
 @Controller('posts')
 export class PostController {
-  constructor(private readonly postService: PostService) {}
+  constructor(private service: PostService) {}
 
   @Post()
-  create(@Body() dto: CreatePostDto) {
-    // TEMP: replace with req.user.id when auth is ready
-    const authorId = 1;
-    return this.postService.create(authorId, dto);
+  create(@Req() req, @Body() dto: CreatePostDto) {
+    return this.service.create(req.user.id, dto);
   }
 
   @Get()
   findAll() {
-    return this.postService.findAll();
+    return this.service.findAll();
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.postService.findOne(id);
+  findOne(@Param('id') id: string) {
+    return this.service.findOne(+id);
   }
 
   @Patch(':id')
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdatePostDto) {
-    return this.postService.update(id, dto);
+  update(@Req() req, @Param('id') id: string, @Body() dto: UpdatePostDto) {
+    return this.service.update(+id, req.user.id, dto);
   }
 
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.postService.remove(id);
+  delete(@Req() req, @Param('id') id: string) {
+    return this.service.delete(+id, req.user.id);
   }
 }
