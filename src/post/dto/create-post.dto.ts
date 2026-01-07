@@ -28,4 +28,7 @@ export class CreatePostDto {
 
   @IsInt()
   authorId: number;
+
+  @IsOptional()
+  tagIds?: number[];
 }
