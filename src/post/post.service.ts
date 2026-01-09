@@ -5,63 +5,58 @@ import { UpdatePostDto } from './dto/update-post.dto';
 
 @Injectable()
 export class PostService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) {}
 
-  async create(authorId: number, dto: CreatePostDto) {
+  create(userId: number, dto: CreatePostDto) {
     return this.prisma.post.create({
       data: {
-        ...dto,
-        authorId,
-        slug: this.slugify(dto.title),
+        title: dto.title,
+        content: dto.content,
+        thumbnail: dto.thumbnail,
+        published: dto.published ?? false,
+        authorId: userId,
+        tags: dto.tagIds
+          ? {
+              connect: dto.tagIds.map((id) => ({ id })),
+            }
+          : undefined,
       },
     });
   }
 
-  async findAll() {
+  findAll(page = 1) {
     return this.prisma.post.findMany({
       where: { published: true },
+      take: 10,
+      skip: (page - 1) * 10,
       include: {
-        author: {
-          select: { id: true, name: true },
-        },
+        author: true,
+        tags: true,
+        _count: { select: { likes: true } },
       },
-      orderBy: { createdAt: 'desc' },
     });
   }
 
-  async findOne(id: number) {
-    const post = await this.prisma.post.findUnique({
+  findOne(id: number) {
+    return this.prisma.post.findUnique({
       where: { id },
+      include: {
+        comments: { include: { author: true } },
+        tags: true,
+      },
     });
-
-    if (!post) {
-      throw new NotFoundException('Post not found');
-    }
-
-    return post;
   }
 
-  async update(id: number, dto: UpdatePostDto) {
-    await this.findOne(id);
-
+  update(id: number, userId: number, data) {
     return this.prisma.post.update({
-      where: { id },
-      data: dto,
+      where: { id, authorId: userId },
+      data,
     });
   }
 
-  async remove(id: number) {
-    await this.findOne(id);
-
+  delete(id: number, userId: number) {
     return this.prisma.post.delete({
-      where: { id },
+      where: { id, authorId: userId },
     });
-  }
-
-  private slugify(text: string) {
-    return text
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/(^-|-$)+/g, '');
   }
 }
