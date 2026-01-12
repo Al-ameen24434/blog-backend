@@ -1,34 +1,94 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+// src/comments/comments.controller.ts
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  UseGuards,
+  Query,
+  Request,
+  ParseIntPipe,
+  HttpStatus,
+  HttpCode,
+} from '@nestjs/common';
 import { CommentService } from './comment.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Public } from '../auth/guards/decorators/public.decorators';
+import {
+  ApiBearerAuth,
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+} from '@nestjs/swagger';
 
-@Controller('comment')
-export class CommentController {
-  constructor(private readonly commentService: CommentService) {}
+@ApiTags('comments')
+@Controller('comments')
+export class CommentsController {
+  constructor(private readonly commentsService: CommentService) {}
 
   @Post()
-  create(@Body() createCommentDto: CreateCommentDto) {
-    return this.commentService.create(createCommentDto);
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create a new comment' })
+  create(@Request() req, @Body() createCommentDto: CreateCommentDto) {
+    return this.commentsService.create(req.user.id, createCommentDto);
   }
 
   @Get()
-  findAll() {
-    return this.commentService.findAll();
+  @Public()
+  @ApiOperation({ summary: 'Get all comments with pagination' })
+  findAll(
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('postId') postId?: number,
+    @Query('authorId') authorId?: number,
+  ) {
+    return this.commentsService.findAll({
+      page,
+      limit,
+      postId,
+      authorId,
+    });
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.commentService.findOne(+id);
+  @Public()
+  @ApiOperation({ summary: 'Get comment by ID' })
+  @ApiResponse({ status: 404, description: 'Comment not found' })
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.commentsService.findOne(id);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateCommentDto: UpdateCommentDto) {
-    return this.commentService.update(+id, updateCommentDto);
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update comment' })
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Request() req,
+    @Body() updateCommentDto: UpdateCommentDto,
+  ) {
+    return this.commentsService.update(id, req.user.id, updateCommentDto);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.commentService.remove(+id);
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Delete comment' })
+  remove(@Param('id', ParseIntPipe) id: number, @Request() req) {
+    return this.commentsService.remove(id, req.user.id);
+  }
+
+  @Get('post/:postId')
+  @Public()
+  @ApiOperation({ summary: 'Get comments by post ID' })
+  getCommentsByPost(@Param('postId', ParseIntPipe) postId: number) {
+    return this.commentsService.getCommentsByPostId(postId);
   }
 }
