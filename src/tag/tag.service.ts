@@ -8,7 +8,7 @@ import { CreateTagDto } from './dto/create-tag.dto';
 import { TagEntity } from './entities/tag.entity';
 
 @Injectable()
-export class TagsService {
+export class TagService {
   constructor(private prisma: PrismaService) {}
 
   async create(createTagDto: CreateTagDto): Promise<TagEntity> {
