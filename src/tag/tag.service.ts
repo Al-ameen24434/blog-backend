@@ -115,12 +115,9 @@ export class TagService {
       take: limit,
     });
 
-    return tags.map(
-      (tag) =>
-        new TagEntity({
-          ...tag,
-          postsCount: tag._count.posts,
-        }),
-    );
+    return tags.map((tag) => {
+      const { _count, ...tagData } = tag;
+      return new TagEntity(tagData);
+    });
   }
 }
