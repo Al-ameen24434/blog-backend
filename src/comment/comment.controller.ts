@@ -28,7 +28,7 @@ import {
 
 @ApiTags('comments')
 @Controller('comments')
-export class CommentsController {
+export class CommentController {
   constructor(private readonly commentsService: CommentService) {}
 
   @Post()
