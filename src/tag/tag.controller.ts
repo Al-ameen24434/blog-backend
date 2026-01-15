@@ -27,7 +27,7 @@ import {
 
 @ApiTags('tags')
 @Controller('tags')
-export class TagsController {
+export class TagController {
   constructor(private readonly tagsService: TagService) {}
 
   @Post()
