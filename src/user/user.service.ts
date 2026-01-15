@@ -14,7 +14,7 @@ export class UserService {
   constructor(private prisma: PrismaService) {}
 
   async create(createUserDto: CreateUserDto): Promise<UserEntity> {
-    // Check if user already exists
+    // Check if user already exists by email
     const existingUser = await this.prisma.user.findUnique({
       where: { email: createUserDto.email },
     });
@@ -37,30 +37,13 @@ export class UserService {
   }
 
   async findAll(): Promise<UserEntity[]> {
-    const users = await this.prisma.user.findMany({
-      include: {
-        posts: true,
-        comments: true,
-        likes: true,
-      },
-    });
+    const users = await this.prisma.user.findMany();
     return users.map((user) => new UserEntity(user));
   }
 
   async findOne(id: number): Promise<UserEntity> {
     const user = await this.prisma.user.findUnique({
       where: { id },
-      include: {
-        posts: {
-          include: {
-            tags: true,
-            comments: true,
-            likes: true,
-          },
-        },
-        comments: true,
-        likes: true,
-      },
     });
 
     if (!user) {
@@ -75,7 +58,17 @@ export class UserService {
       where: { email },
     });
 
-    return user ? new UserEntity(user) : null;
+    if (!user) {
+      return null;
+    }
+
+    return new UserEntity(user);
+  }
+
+  // REMOVED: findByUsername method since we don't have username field
+
+  async findById(id: number): Promise<UserEntity> {
+    return this.findOne(id);
   }
 
   async update(id: number, updateUserDto: UpdateUserDto): Promise<UserEntity> {
@@ -95,6 +88,19 @@ export class UserService {
     return new UserEntity(user);
   }
 
+  async updateRefreshToken(
+    id: number,
+    refreshToken: string | null,
+  ): Promise<void> {
+    const hashedRefreshToken = refreshToken
+      ? await bcrypt.hash(refreshToken, 10)
+      : null;
+    await this.prisma.user.update({
+      where: { id },
+      data: { refreshToken: hashedRefreshToken },
+    });
+  }
+
   async remove(id: number): Promise<UserEntity> {
     // Check if user exists
     await this.findOne(id);
@@ -106,23 +112,17 @@ export class UserService {
     return new UserEntity(user);
   }
 
+  // Additional methods
   async getPostsByUserId(userId: number) {
-    const posts = await this.prisma.post.findMany({
+    return this.prisma.post.findMany({
       where: { authorId: userId },
       include: {
-        author: true,
         tags: true,
         comments: true,
         likes: true,
       },
       orderBy: { createdAt: 'desc' },
     });
-
-    return posts.map((post) => ({
-      ...post,
-      likesCount: post.likes.length,
-      commentsCount: post.comments.length,
-    }));
   }
 
   async getCommentsByUserId(userId: number) {
@@ -130,7 +130,6 @@ export class UserService {
       where: { authorId: userId },
       include: {
         post: true,
-        author: true,
       },
       orderBy: { createdAt: 'desc' },
     });
