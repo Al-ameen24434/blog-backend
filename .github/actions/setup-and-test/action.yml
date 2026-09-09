@@ -1,0 +1,47 @@
+# .github/actions/setup-and-test/action.yml
+#
+# COMPOSITE ACTION
+# -----------------
+# Checkout + Node setup + install + Prisma generate + test,
+# bundled into one reusable step.
+
+name: 'Setup and Test'
+description: 'Checks out code, installs Node, generates Prisma client, runs tests'
+
+inputs:
+  node-version:
+    description: 'Node.js version to install'
+    required: false
+    default: '20'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+      shell: bash
+
+    # Prisma's client is generated from schema.prisma into
+    # node_modules/@prisma/client. If your package.json already has
+    # "postinstall": "prisma generate", `npm ci` above already did
+    # this — this step is a safety net and is a no-op if so.
+    - name: Generate Prisma client
+      run: npx prisma generate
+      shell: bash
+
+    # ASSUMPTION: `npm test` runs your Jest unit tests
+    # (NestJS's default generated script). If you also have e2e
+    # tests (commonly `npm run test:e2e`), add that as a separate
+    # step below.
+    - name: Run unit tests
+      run: npm test
+      shell: bash
