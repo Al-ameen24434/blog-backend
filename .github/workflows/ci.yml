@@ -1,20 +1,24 @@
 # .github/workflows/ci.yml
 #
-# CI PIPELINE (build + test only — no deploy yet)
-# -------------------------------------------------
+# CI PIPELINE (build + test + docker build - deploy & slack commented)
+# ---------------------------------------------------------------------
 # Adds a real PostgreSQL service container so Prisma has a database
 # to run migrations against during CI. If your tests are fully
 # mocked and never touch the DB, this container just sits idle —
 # no harm, but it's there and ready the moment you add a real
 # integration/e2e test.
+#
+# AWS deploy + Slack notify are stubbed and commented - uncomment when ready:
+# - AWS: ECR push + ECS deploy (needs AWS_ROLE_TO_ASSUME / secrets)
+# - Slack: slackapi/slack-github-action notification
 
 name: CI
 
 on:
   push:
-    branches: [master]
+    branches: [main]
   pull_request:
-    branches: [master]
+    branches: [main]
 
 jobs:
   # ---------------------------------------------------------------
@@ -110,3 +114,124 @@ jobs:
           tags: my-app:ci-test
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # ---------------------------------------------------------------
+  # JOB 3: Deploy to AWS - COMMENTED (uncomment when ready)
+  # Pushes image to ECR and deploys to ECS.
+  # Requires secrets: AWS_ROLE_TO_ASSUME or AWS_ACCESS_KEY_ID/SECRET,
+  # and repo vars: AWS_REGION, ECR_REPOSITORY, ECS_CLUSTER, ECS_SERVICE
+  # ---------------------------------------------------------------
+  # deploy-aws:
+  #   needs: docker-build
+  #   if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     id-token: write  # for OIDC to AWS
+  #     contents: read
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
+  #
+  #     - name: Configure AWS credentials
+  #       uses: aws-actions/configure-aws-credentials@v4
+  #       with:
+  #         role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+  #         aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+  #         # Alternative static keys (not recommended):
+  #         # aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  #         # aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  #
+  #     - name: Login to Amazon ECR
+  #       id: login-ecr
+  #       uses: aws-actions/amazon-ecr-login@v2
+  #
+  #     - name: Set up Docker Buildx
+  #       uses: docker/setup-buildx-action@v3
+  #
+  #     - name: Build and push to ECR
+  #       uses: docker/build-push-action@v6
+  #       with:
+  #         context: .
+  #         push: true
+  #         tags: ${{ steps.login-ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY || 'blog-backend' }}:${{ github.sha }}
+  #         cache-from: type=gha
+  #         cache-to: type=gha,mode=max
+  #
+  #     - name: Deploy to ECS
+  #       run: |
+  #         aws ecs update-service \
+  #           --cluster ${{ vars.ECS_CLUSTER || 'blog-cluster' }} \
+  #           --service ${{ vars.ECS_SERVICE || 'blog-service' }} \
+  #           --force-new-deployment
+  #         aws ecs wait services-stable \
+  #           --cluster ${{ vars.ECS_CLUSTER || 'blog-cluster' }} \
+  #           --services ${{ vars.ECS_SERVICE || 'blog-service' }}
+  #
+  #     # Alternative: Elastic Beanstalk / App Runner / EC2 SSH deploy
+  #     # - name: Deploy to Elastic Beanstalk
+  #     #   run: |
+  #     #     aws elasticbeanstalk update-environment \
+  #     #       --environment-name ${{ vars.EB_ENV_NAME }} \
+  #     #       --version-label ${{ github.sha }}
+  #
+  #     - name: Run DB migrations on AWS (optional)
+  #       run: |
+  #         # If your ECS task has prisma, run via one-off task or SSM:
+  #         # aws ecs run-task --cluster ... --task-definition blog-migrate ...
+  #         echo "Add migrate command for your infra (e.g., ecs run-task with npx prisma migrate deploy)"
+  #
+  #     - name: Verify deployment
+  #       run: |
+  #         curl -f ${{ vars.APP_HEALTH_URL || 'https://api.example.com/health' }} || exit 1
+
+  # ---------------------------------------------------------------
+  # JOB 4: Slack notifications - COMMENTED (uncomment when ready)
+  # Requires secret: SLACK_BOT_TOKEN and vars: SLACK_CHANNEL_ID
+  # or webhook: SLACK_WEBHOOK_URL
+  # ---------------------------------------------------------------
+  # notify-slack:
+  #   needs: [test, docker-build]
+  #   # needs: [test, docker-build, deploy-aws]  # if deploy enabled
+  #   if: always()  # notify even on failure
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Notify Slack - success
+  #       if: ${{ needs.test.result == 'success' && needs.docker-build.result == 'success' }}
+  #       uses: slackapi/slack-github-action@v2
+  #       with:
+  #         method: chat.postMessage
+  #         token: ${{ secrets.SLACK_BOT_TOKEN }}
+  #         payload: |
+  #           channel: ${{ vars.SLACK_CHANNEL_ID || 'C00000000' }}
+  #           text: ":white_check_mark: CI passed for *${{ github.repository }}* `${{ github.ref_name }}` - commit `${{ github.sha }}` by ${{ github.actor }} - <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>"
+  #           blocks: |
+  #             [
+  #               {
+  #                 "type": "section",
+  #                 "text": {
+  #                   "type": "mrkdwn",
+  #                   "text": ":white_check_mark: *CI Passed* - `${{ github.repository }}@${{ github.ref_name }}`\n*Commit:* `${{ github.sha }}` by ${{ github.actor }}\n*Branch:* ${{ github.ref_name }}\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View workflow run>"
+  #                 }
+  #               }
+  #             ]
+  #
+  #     - name: Notify Slack - failure
+  #       if: ${{ needs.test.result != 'success' || needs.docker-build.result != 'success' }}
+  #       uses: slackapi/slack-github-action@v2
+  #       with:
+  #         method: chat.postMessage
+  #         token: ${{ secrets.SLACK_BOT_TOKEN }}
+  #         payload: |
+  #           channel: ${{ vars.SLACK_CHANNEL_ID || 'C00000000' }}
+  #           text: ":x: CI failed for *${{ github.repository }}* `${{ github.ref_name }}` - commit `${{ github.sha }}` by ${{ github.actor }} - <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>"
+  #
+  #     # Alternative: simple webhook without bot token
+  #     # - name: Notify Slack via webhook
+  #     #   if: always()
+  #     #   run: |
+  #     #     STATUS="${{ job.status }}"
+  #     #     COLOR="danger"
+  #     #     if [ "$STATUS" = "success" ]; then COLOR="good"; fi
+  #     #     curl -X POST -H 'Content-type: application/json' \
+  #     #       --data "{\"attachments\":[{\"color\":\"$COLOR\",\"text\":\"CI $STATUS for ${{ github.repository }} ${{ github.ref_name }} ${{ github.sha }} - ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}]}" \
+  #     #       ${{ secrets.SLACK_WEBHOOK_URL }}
