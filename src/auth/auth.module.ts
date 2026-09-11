@@ -20,7 +20,9 @@ import { JwtGlobalGuard } from './guards/jwt-global.guard';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        secret: config.get<string>('JWT_SECRET'),
+        secret:
+          config.get<string>('JWT_SECRET') ??
+          'dev-jwt-secret-please-change-in-production-32-chars',
       }),
     }),
   ],

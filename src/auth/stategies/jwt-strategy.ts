@@ -11,9 +11,12 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     private configService: ConfigService,
     private usersService: UserService,
   ) {
-    const jwtSecret = configService.get<string>('JWT_SECRET');
+    let jwtSecret = configService.get<string>('JWT_SECRET');
     if (!jwtSecret) {
-      throw new Error('JWT_SECRET is not set in configuration');
+      console.warn(
+        '⚠️ JWT_SECRET not set - using development fallback. Set JWT_SECRET in .env for production!',
+      );
+      jwtSecret = 'dev-jwt-secret-please-change-in-production-32-chars';
     }
 
     super({

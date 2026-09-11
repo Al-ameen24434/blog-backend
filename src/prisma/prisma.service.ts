@@ -8,8 +8,15 @@ export class PrismaService
   implements OnModuleInit, OnModuleDestroy
 {
   constructor() {
+    const connectionString = process.env.DATABASE_URL;
+    if (!connectionString) {
+      console.warn(
+        '⚠️ DATABASE_URL not set - Prisma will fail to connect. Set DATABASE_URL in .env',
+      );
+    }
+
     const adapter = new PrismaNeon({
-      connectionString: process.env.DATABASE_URL!,
+      connectionString: connectionString ?? 'postgresql://user:password@localhost:5432/blog',
     });
 
     super({

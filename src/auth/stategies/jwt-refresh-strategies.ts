@@ -11,9 +11,17 @@ export class JwtRefreshStrategy extends PassportStrategy(
   'jwt-refresh',
 ) {
   constructor(private configService: ConfigService) {
+    let refreshSecret = configService.get<string>('JWT_REFRESH_SECRET');
+    if (!refreshSecret) {
+      console.warn(
+        '⚠️ JWT_REFRESH_SECRET not set - using development fallback. Set JWT_REFRESH_SECRET in .env for production!',
+      );
+      refreshSecret = 'dev-jwt-refresh-secret-please-change-in-production-32-chars';
+    }
+
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-      secretOrKey: configService.get<string>('JWT_REFRESH_SECRET'),
+      secretOrKey: refreshSecret,
       passReqToCallback: true,
     } as StrategyOptionsWithRequest);
   }

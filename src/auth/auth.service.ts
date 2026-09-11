@@ -105,7 +105,9 @@ export class AuthService {
 
     try {
       const decoded = await this.jwtService.verifyAsync(refreshToken, {
-        secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+        secret:
+          this.configService.get<string>('JWT_REFRESH_SECRET') ??
+          'dev-jwt-refresh-secret-please-change-in-production-32-chars',
       });
 
       const user = await this.usersService.findById(decoded.sub);
@@ -142,12 +144,16 @@ export class AuthService {
 
   async getTokens(userId: number, email: string, role: string) {
     const accessOptions: JwtSignOptions = {
-      secret: this.configService.get<string>('JWT_SECRET'),
+      secret:
+        this.configService.get<string>('JWT_SECRET') ??
+        'dev-jwt-secret-please-change-in-production-32-chars',
       expiresIn: '15m',
     };
 
     const refreshOptions: JwtSignOptions = {
-      secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+      secret:
+        this.configService.get<string>('JWT_REFRESH_SECRET') ??
+        'dev-jwt-refresh-secret-please-change-in-production-32-chars',
       expiresIn: '7d',
     };
 
